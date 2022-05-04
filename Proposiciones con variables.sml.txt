@@ -1,0 +1,236 @@
+Moscow ML version 2.01 (January 2004)
+Enter `quit();' to quit.
+- (* Lenguaje de proposiciones con constantes. No tiene variables *)
+
+(* Aqui definimos la sintaxis abstracta de nuestro pequenno
+   lenguaje de proposiciones con constantes *)
+
+datatype Proposicion =
+  constante    of bool
+| variable     of string
+| negacion     of Proposicion
+| conjuncion   of Proposicion * Proposicion
+| disyuncion   of Proposicion * Proposicion
+| implicacion  of Proposicion * Proposicion
+| equivalencia of Proposicion * Proposicion
+;
+> New type names: =Proposicion
+  datatype Proposicion =
+  (Proposicion,
+   {con conjuncion : Proposicion * Proposicion -> Proposicion,
+    con constante : bool -> Proposicion,
+    con disyuncion : Proposicion * Proposicion -> Proposicion,
+    con equivalencia : Proposicion * Proposicion -> Proposicion,
+    con implicacion : Proposicion * Proposicion -> Proposicion,
+    con negacion : Proposicion -> Proposicion,
+    con variable : string -> Proposicion})
+  con conjuncion = fn : Proposicion * Proposicion -> Proposicion
+  con constante = fn : bool -> Proposicion
+  con disyuncion = fn : Proposicion * Proposicion -> Proposicion
+  con equivalencia = fn : Proposicion * Proposicion -> Proposicion
+  con implicacion = fn : Proposicion * Proposicion -> Proposicion
+  con negacion = fn : Proposicion -> Proposicion
+  con variable = fn : string -> Proposicion
+-
+fun imprimir prop =
+case prop of
+        constante false             => "false"
+    |   constante true              => "true"
+    |   variable nombre             => nombre
+    |   negacion prop1              => "negacion (" ^ imprimir  prop1 ^ ")"
+    |   conjuncion (prop1, prop2)   => "conjuncion (" ^ imprimir prop1 ^ ", " ^ imprimir prop2 ^ ")"
+    |   disyuncion (prop1, prop2)   => "disyuncion (" ^ imprimir prop1 ^ ", " ^ imprimir prop2 ^ ")"
+    |   implicacion (prop1, prop2)  => "implicacion (" ^ imprimir prop1 ^ ", " ^ imprimir prop2 ^ ")"
+    |   equivalencia (prop1, prop2) => "equivalencia (" ^ imprimir prop1 ^ ", " ^ imprimir prop2 ^ ")"
+;
+> val imprimir = fn : Proposicion -> string
+-
+nonfix ~:
+val ~: = negacion
+
+infix 7 :&&:
+val (op :&&:) = conjuncion
+
+infix 6 :||:
+val (op :||:) = disyuncion
+
+infixr 5 :=>:
+val (op :=>:) = implicacion
+
+infix 4 :<=>:
+val (op :<=>:) = equivalencia
+
+;
+> nonfix ~:
+  infix 7 :&&:
+  infix 6 :||:
+  infixr 5 :=>:
+  infix 4 :<=>:
+  val ~: = fn : Proposicion -> Proposicion
+  val :&&: = fn : Proposicion * Proposicion -> Proposicion
+  val :||: = fn : Proposicion * Proposicion -> Proposicion
+  val :=>: = fn : Proposicion * Proposicion -> Proposicion
+  val :<=>: = fn : Proposicion * Proposicion -> Proposicion
+-
+val pru1 = (variable "a") :&&: (variable "b") ;
+> val pru1 = conjuncion(variable "a", variable "b") : Proposicion
+- val pru2 = (variable "x") :&&: (variable "y") ;
+> val pru2 = conjuncion(variable "x", variable "y") : Proposicion
+- val pru3 = pru1 :||: pru2 ;
+> val pru3 =
+    disyuncion(conjuncion(variable "a", variable "b"),
+               conjuncion(variable "x", variable "y")) : Proposicion
+- val pru4 = pru3 :=>: pru3 ;
+> val pru4 =
+    implicacion(disyuncion(conjuncion(variable "a", variable "b"),
+                           conjuncion(variable "x", variable "y")),
+                disyuncion(conjuncion(variable "a", variable "b"),
+                           conjuncion(variable "x", variable "y"))) :
+  Proposicion
+-
+fun props_iguales (a, b) = a = b
+;
+> val ''a props_iguales = fn : ''a * ''a -> bool
+-
+fun idempotencia (prop as (conjuncion (a,b))) = if a = b then a else prop
+|   idempotencia (prop as (disyuncion (a,b))) = if a = b then a else prop
+|   idempotencia prop                         = prop (* todos los demás casos *)
+;
+> val idempotencia = fn : Proposicion -> Proposicion
+- (* filter filtra una lista de acuerdo con un predicado p *)
+
+fun filter p []      = []
+|   filter p (x::xs) = if p x then x :: filter p xs else filter p xs
+;
+> val 'a filter = fn : ('a -> bool) -> 'a list -> 'a list
+-
+
+(* nub obtiene una lista sin duplicados a partir de una lista arbitraria *)
+fun nub []      = []
+|   nub (x::xs) = x :: (nub (filter (fn y => x <> y) xs))  (* quita los duplicados *)
+;
+> val ''a nub = fn : ''a list -> ''a list
+-
+
+(* Extraer variables en una proposición *)
+(* Estrategia:
+   - sacar variables una a una en listas unitarias,
+   - concatenar listas cuando hay conectivos lógicos,
+   - eliminar duplicados (si lo hay) en la lista final *)
+
+fun vars prop =
+let
+fun las_vars prop =
+  case prop of
+    constante _
+       => []
+  | variable var
+       => [var]
+  | negacion prop1
+       => las_vars prop1
+  | conjuncion (prop1, prop2)
+       => let val vars1 = las_vars prop1
+              and vars2 = las_vars prop2
+          in  vars1 @ vars2
+          end
+  | disyuncion (prop1, prop2)
+       => let val vars1 = las_vars prop1
+              and vars2 = las_vars prop2
+          in  vars1 @ vars2
+          end
+  | implicacion (prop1, prop2)
+       => let val vars1 = las_vars prop1
+              and vars2 = las_vars prop2
+          in  vars1 @ vars2
+          end
+  | equivalencia (prop1, prop2)
+       => let val vars1 = las_vars prop1
+              and vars2 = las_vars prop2
+          in  vars1 @ vars2
+          end
+in
+    nub (las_vars prop) (* elimina valores repetidos *)
+end
+;
+> val vars = fn : Proposicion -> string list
+-
+(op ^) ;
+> val it = fn : string * string -> string
+- (* Solución directa y natural.
+   Idea original:
+   Solución inductiva, mapear (true ::) y (false ::) sobre las listas con 2^(n-1) arreglos booleanos
+   *)
+
+(* construcción de listas 'curryficada' *)
+fun cons x xs = x :: xs
+;
+> val 'a cons = fn : 'a -> 'a list -> 'a list
+-
+(* combinaciones de valores booleanos *)
+fun gen_bools 0 = [[]]
+|   gen_bools n = let val anterior = gen_bools (n - 1)
+                  in (map (cons true) anterior) @ (map (cons false) anterior)
+                  end
+;
+> val gen_bools = fn : int -> bool list list
+-
+
+(* concatenación de hileras 'curryficada'*)
+fun pegar car hil = car ^ hil
+;
+> val pegar = fn : string -> string -> string
+-
+(* generación de números binarios de n dígitos *)
+fun gen_bins 0 = [""]
+|   gen_bins n = let val anterior = gen_bins (n - 1)
+                  in (map (pegar "0") anterior) @ (map (pegar "1") anterior)
+                  end
+;
+> val gen_bins = fn : int -> string list
+- gen_bins 3 ;
+> val it = ["000", "001", "010", "011", "100", "101", "110", "111"] :
+  string list
+- gen_bins 4 ;
+> val it =
+    ["0000", "0001", "0010", "0011", "0100", "0101", "0110", "0111", "1000",
+     "1001", "1010", "1011", "1100", "1101", "1110", "1111"] : string list
+- gen_bins 0 ;
+> val it = [""] : string list
+- pegar ;
+> val it = fn : string -> string -> string
+- val pegarA = pegar "A" ;
+> val pegarA = fn : string -> string
+- pegarA "hola" ;
+> val it = "Ahola" : string
+- pegarA "hora" ;
+> val it = "Ahora" : string
+- (op ::) ;
+> val 'a it = fn : 'a * 'a list -> 'a list
+- cons ;
+> val 'a it = fn : 'a -> 'a list -> 'a list
+- gen_bools 5 ;
+> val it =
+    [[true, true, true, true, true], [true, true, true, true, false],
+     [true, true, true, false, true], [true, true, true, false, false],
+     [true, true, false, true, true], [true, true, false, true, false],
+     [true, true, false, false, true], [true, true, false, false, false],
+     [true, false, true, true, true], [true, false, true, true, false],
+     [true, false, true, false, true], [true, false, true, false, false],
+     [true, false, false, true, true], [true, false, false, true, false],
+     [true, false, false, false, true], [true, false, false, false, false],
+     [false, true, true, true, true], [false, true, true, true, false],
+     [false, true, true, false, true], [false, true, true, false, false],
+     [false, true, false, true, true], [false, true, false, true, false],
+     [false, true, false, false, true], [false, true, false, false, false],
+     [false, false, true, true, true], [false, false, true, true, false],
+     [false, false, true, false, true], [false, false, true, false, false],
+     [false, false, false, true, true], [false, false, false, true, false],
+     [false, false, false, false, true], [false, false, false, false, false]] :
+  bool list list
+- length ;
+> val 'a it = fn : 'a list -> int
+- length (gen_bools 5);
+> val it = 32 : int
+- length (gen_bins 5);
+> val it = 32 : int
+-
